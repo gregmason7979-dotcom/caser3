@@ -36,6 +36,7 @@ if ($rawExt !== '') {
         $_SESSION['agent_ext'] = $agentExt;
     }
 }
+$formCloseRedirect = appendAgentExtToUrl('form.php', $agentExt);
 ?>
 
 <?php
@@ -293,11 +294,38 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
 .highlight-blue   { background-color: #d9ecff !important; }  /* Escalated */
 
 /* Modals shared */
-.modal { display: none; position: fixed; padding-top: 100px; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); z-index: 3000;}
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  padding: 40px 12px;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background-color: rgba(0,0,0,0.4);
+  z-index: 3000;
+}
 .modal.modal-notes { z-index: 15000; }
 #detailsModal { z-index: 2000; }
 
-.modal-content { background-color: #fff; margin: auto; padding: 20px; border-radius: 10px; width: 80%; max-width: 640px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; }
+.modal-content {
+  background-color: #fff;
+  margin: auto;
+  padding: 20px;
+  border-radius: 10px;
+  width: 80%;
+  max-width: 640px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  position: relative;
+}
+@media (max-width: 768px) {
+  .modal-content {
+    width: 94%;
+    max-height: calc(100vh - 80px);
+  }
+}
 .modal-content h3 { margin: 0 0 10px 0; color:#0073e6; }
 .close { color: #aaa; position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
 .close:hover { color: #000; }
@@ -330,6 +358,7 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
   max-width: 900px;
   width: 90%;
   height: 80vh;
+  max-height: 80vh;
   display: flex;
   flex-direction: column;
 }
@@ -695,7 +724,8 @@ window.openMapPopup = openMapPopup;
 
           // Actions with View Details/Notes, Edit, Close/Escalate logic, Address + Escalation ID in modal
           $editUrl = appendAgentExtToUrl('edit_case.php?id=' . urlencode((string)$case_number), $agentExt);
-          $closeUrl = appendAgentExtToUrl('cases.php?close_case=' . urlencode((string)$case_number), $agentExt);
+          $closeUrl = 'close_case.php?case=' . urlencode((string)$case_number)
+                    . '&redirect=' . rawurlencode($formCloseRedirect);
           $escalateUrl = appendAgentExtToUrl('escalate.php?id=' . urlencode((string)$case_number), $agentExt);
           echo "<td>
                   <a href='javascript:void(0);' class='view-details-btn'
@@ -703,10 +733,10 @@ window.openMapPopup = openMapPopup;
                      data-audio='".htmlspecialchars($audioLink, ENT_QUOTES)."'>View Details</a> |
                   <a class='edit-link' href='".htmlspecialchars($editUrl, ENT_QUOTES)."'>Edit</a>";
           if ($statusLower == 'open') {
-              echo " | <a class='edit-link' href='".htmlspecialchars($closeUrl, ENT_QUOTES)."' onclick=\"return confirm('Close this case?');\">Close</a> |
-                     <a class='edit-link' href='".htmlspecialchars($escalateUrl, ENT_QUOTES)."'>Escalate</a>";
+              echo " | <a class='edit-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' onclick=\"return confirm('Close this case?');\">Close</a> |"
+                 . " <a class='edit-link' href='" . htmlspecialchars($escalateUrl, ENT_QUOTES) . "'>Escalate</a>";
           } elseif ($statusLower == 'escalated') {
-              echo " | <a class='edit-link' href='".htmlspecialchars($closeUrl, ENT_QUOTES)."' onclick=\"return confirm('Close this escalated case?');\">Close</a>";
+              echo " | <a class='edit-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' onclick=\"return confirm('Close this escalated case?');\">Close</a>";
           }
           echo "</td>";
 
