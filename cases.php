@@ -1,10 +1,41 @@
 ﻿<?php
 session_start();
-if (isset($_GET['ext']) && $_GET['ext'] !== '') {
-    $ext = preg_replace('/[^0-9*#+]/', '', $_GET['ext']);
-    $_SESSION['agent_ext'] = $ext;
+
+function sanitizeAgentExtension($value) {
+    return preg_replace('/[^0-9*#+]/', '', (string)$value);
 }
-$agentExt = $_SESSION['agent_ext'] ?? '';
+
+function appendAgentExtToUrl($url, $agentExtValue) {
+    $agentExtValue = trim((string)$agentExtValue);
+    if ($agentExtValue === '') {
+        return $url;
+    }
+    $separator = (strpos($url, '?') === false) ? '?' : '&';
+    return $url . $separator . 'ext=' . urlencode($agentExtValue);
+}
+
+$agentExt = '';
+$rawExt = '';
+if (isset($_GET['ext']) && $_GET['ext'] !== '') {
+    $rawExt = $_GET['ext'];
+} elseif (isset($_POST['ext']) && $_POST['ext'] !== '') {
+    $rawExt = $_POST['ext'];
+}
+
+if ($rawExt !== '') {
+    $agentExt = sanitizeAgentExtension($rawExt);
+    if ($agentExt !== '') {
+        $_SESSION['agent_ext'] = $agentExt;
+        setcookie('agent_ext', $agentExt, time() + 31536000, '/');
+    }
+} elseif (!empty($_SESSION['agent_ext'])) {
+    $agentExt = sanitizeAgentExtension($_SESSION['agent_ext']);
+} elseif (!empty($_COOKIE['agent_ext'])) {
+    $agentExt = sanitizeAgentExtension($_COOKIE['agent_ext']);
+    if ($agentExt !== '') {
+        $_SESSION['agent_ext'] = $agentExt;
+    }
+}
 
 set_time_limit(120);
 
@@ -34,7 +65,7 @@ if (isset($_GET['close_case'])) {
     $close_case = $_GET['close_case'];
     $update = "UPDATE mwcsp_caser SET status='Closed' WHERE case_number=?";
     sqlsrv_query($conn, $update, [$close_case]);
-    header("Location: cases.php");
+    header("Location: " . appendAgentExtToUrl('cases.php', $agentExt));
     exit;
 }
 
@@ -198,8 +229,8 @@ if ($page > $total_pages) $page = $total_pages;
 $offset = ($page - 1) * $per_page;
 $rows_page = array_slice($rows, $offset, $per_page);
 
-function buildPageLink($p, $pie_range) {
-    return 'cases.php?page='.$p.'&pie_range='.urlencode($pie_range);
+function buildPageLink($p, $pie_range, $agentExtValue) {
+    return appendAgentExtToUrl('cases.php?page='.$p.'&pie_range='.urlencode($pie_range), $agentExtValue);
 }
 
 // Prepare safe JSON payloads for the front-end (avoid invalid UTF-8 failures)
@@ -536,10 +567,10 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
 <body>
 
 <div class="header">
-  <a href="form.php">➕ New Case</a>
-  <a href="cases.php" class="active">📋 Case List</a>
-  <a href="search.php">🔍 Search Cases</a>
-  <a href="dashboard.php">📊 Dashboard</a>
+  <a href="<?php echo appendAgentExtToUrl('form.php', $agentExt); ?>">➕ New Case</a>
+  <a href="<?php echo appendAgentExtToUrl('cases.php', $agentExt); ?>" class="active">📋 Case List</a>
+  <a href="<?php echo appendAgentExtToUrl('search.php', $agentExt); ?>">🔍 Search Cases</a>
+  <a href="<?php echo appendAgentExtToUrl('dashboard.php', $agentExt); ?>">📊 Dashboard</a>
 </div>
 
 <h1 class="page-title">Case List</h1>
@@ -551,18 +582,20 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
     <div class="pie-side">
       <div class="range-bar">
         <?php
-          function pieBtn($label,$key,$current){
-            $cls = ($key===$current)?'active':''; 
-            $href = 'cases.php?pie_range='.$key;
+          $pieRanges = [
+            'today' => 'Today',
+            '7d' => '7d',
+            '1m' => '1m',
+            '3m' => '3m',
+            '6m' => '6m',
+            '12m' => '12m',
+            'all' => 'All'
+          ];
+          foreach ($pieRanges as $key => $label) {
+            $cls = ($key === $pie_range) ? 'active' : '';
+            $href = appendAgentExtToUrl('cases.php?pie_range=' . $key, $agentExt);
             echo "<a class='$cls' href='$href'>$label</a>";
           }
-          pieBtn('Today','today',$pie_range);
-          pieBtn('7d','7d',$pie_range);
-          pieBtn('1m','1m',$pie_range);
-          pieBtn('3m','3m',$pie_range);
-          pieBtn('6m','6m',$pie_range);
-          pieBtn('12m','12m',$pie_range);
-          pieBtn('All','all',$pie_range);
         ?>
       </div>
       <div class="pie-wrap">
@@ -632,16 +665,19 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
         } else { echo "—"; }
         echo "</td>";
 
+        $editUrl = appendAgentExtToUrl('edit_case.php?id=' . urlencode((string)$case_number), $agentExt);
+        $closeUrl = appendAgentExtToUrl('cases.php?close_case=' . urlencode((string)$case_number), $agentExt);
+        $escalateUrl = appendAgentExtToUrl('escalate.php?id=' . urlencode((string)$case_number), $agentExt);
         echo "<td>
                 <a href='javascript:void(0);' class='view-details-btn'
                    data-case-number='".htmlspecialchars((string)$case_number, ENT_QUOTES)."'
                    data-audio='".htmlspecialchars($audioLink, ENT_QUOTES)."'>View Details</a> |
-                <a class='edit-link' href='edit_case.php?id=".urlencode((string)$case_number)."'>Edit</a>";
+                <a class='edit-link' href='".htmlspecialchars($editUrl, ENT_QUOTES)."'>Edit</a>";
         if ($statusLower == 'open') {
-            echo " | <a class='edit-link' href='cases.php?close_case=".urlencode((string)$case_number)."' onclick=\"return confirm('Close this case?');\">Close</a> | 
-                   <a class='edit-link' href='escalate.php?id=".urlencode((string)$case_number)."'>Escalate</a>";
+            echo " | <a class='edit-link' href='".htmlspecialchars($closeUrl, ENT_QUOTES)."' onclick=\"return confirm('Close this case?');\">Close</a> |
+                   <a class='edit-link' href='".htmlspecialchars($escalateUrl, ENT_QUOTES)."'>Escalate</a>";
         } elseif ($statusLower == 'escalated') {
-            echo " | <a class='edit-link' href='cases.php?close_case=".urlencode((string)$case_number)."' onclick=\"return confirm('Close this escalated case?');\">Close</a>";
+            echo " | <a class='edit-link' href='".htmlspecialchars($closeUrl, ENT_QUOTES)."' onclick=\"return confirm('Close this escalated case?');\">Close</a>";
         }
         echo "</td>";
 
@@ -655,12 +691,12 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
   <div class="pagination">
     <?php
       $prev = $page - 1; $next = $page + 1;
-      echo '<a class="'.($page<=1?'disabled':'').'" href="'.buildPageLink(max(1,$prev), $pie_range).'">Prev</a>';
+      echo '<a class="'.($page<=1?'disabled':'').'" href="'.buildPageLink(max(1,$prev), $pie_range, $agentExt).'">Prev</a>';
       for ($p=1; $p <= $total_pages; $p++) {
-          $cls = ($p==$page)?'active':''; 
-          echo '<a class="'.$cls.'" href="'.buildPageLink($p, $pie_range).'">'.$p.'</a>';
+          $cls = ($p==$page)?'active':'';
+          echo '<a class="'.$cls.'" href="'.buildPageLink($p, $pie_range, $agentExt).'">'.$p.'</a>';
       }
-      echo '<a class="'.($page>=$total_pages?'disabled':'').'" href="'.buildPageLink(min($total_pages,$next), $pie_range).'">Next</a>';
+      echo '<a class="'.($page>=$total_pages?'disabled':'').'" href="'.buildPageLink(min($total_pages,$next), $pie_range, $agentExt).'">Next</a>';
     ?>
   </div>
 </div>
