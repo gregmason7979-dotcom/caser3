@@ -184,10 +184,15 @@ $nowDT = clone $serverNowObj;
 const CASES_BY_NUMBER = <?php echo $casesByNumberJson; ?> || {};
 const CASES_BY_PHONE  = <?php echo $casesByPhoneJson; ?> || {};
 const AUDIO_BY_CASE   = <?php echo $audioByCaseJson; ?> || {};
+const AGENT_EXT       = <?php echo json_encode($agentExt); ?> || '';
+const CSTA_HELPER_URL = 'csta_makecall.php';
 window.CASES_BY_NUMBER = CASES_BY_NUMBER;
 window.CASES_BY_PHONE = CASES_BY_PHONE;
 window.AUDIO_BY_CASE = AUDIO_BY_CASE;
+window.AGENT_EXT = AGENT_EXT;
+window.CSTA_HELPER_URL = CSTA_HELPER_URL;
 </script>
+<script src="js/csta-call.js"></script>
 <style>
 /* Header / Navbar */
 .header {
@@ -228,7 +233,23 @@ button:hover { background: #005bb5; }
 
 /* Informed Consent row adjustments */
 .consent-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
-
+.agent-ext-banner {
+    margin: 16px auto 0;
+    max-width: 700px;
+    background: #e9f2ff;
+    border: 1px solid #bcd5ff;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #1f3b66;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 15px;
+}
+.agent-ext-banner strong {
+    font-size: 16px;
+    color: #004a9f;
+}
 /* Related cases table styles (match cases.php) */
 .related-card { max-width: 1100px; margin: 26px auto; padding: 14px 16px 20px; background:#fff; border-radius:10px; box-shadow:0 5px 15px rgba(0,0,0,0.1); }
 .related-title { text-align:center; color:#0073e6; margin:8px 0 12px; }
@@ -439,6 +460,20 @@ window.openMapPopup = openMapPopup;
   <a href="dashboard.php" class="<?php echo ($currentPage=='dashboard.php')?'active':''; ?>">📊 Dashboard</a>
 </div>
 
+<div class="agent-ext-banner" id="agent-ext-banner">
+  <div>
+    <strong>Agent Extension:</strong>
+    <span id="agent-ext-value"><?php echo $agentExt !== '' ? htmlspecialchars($agentExt) : 'Not set'; ?></span>
+  </div>
+  <div>
+    <?php if ($agentExt === ''): ?>
+      Append <code>?ext=200</code> (or your extension) to this page URL.
+    <?php else: ?>
+      Loaded from MiCC-E Agent.
+    <?php endif; ?>
+  </div>
+</div>
+
 <div class="container">
 <h2>MWCSP Case Form</h2>
 <form action="submit_case.php" method="post">
@@ -624,10 +659,10 @@ window.openMapPopup = openMapPopup;
           echo "<td>". htmlspecialchars((string)$row['status']) ."</td>";
 
           echo "<td>";
-          if (!empty($row['phone_number'])) {
-              $safePhone = htmlspecialchars((string)$row['phone_number']);
-              echo "<a href='tel:$safePhone'>$safePhone</a>";
-          } else { echo "—"; }
+        if (!empty($row['phone_number'])) {
+            $safePhone = htmlspecialchars((string)$row['phone_number'], ENT_QUOTES);
+            echo "<a href='javascript:void(0);' class='csta-call-link' data-csta-number='$safePhone'>$safePhone</a>";
+        } else { echo "—"; }
           echo "</td>";
 
           // Actions with View Details/Notes, Edit, Close/Escalate logic, Address + Escalation ID in modal
@@ -1077,7 +1112,10 @@ function openCaseDetails(caseNumber, options = {}) {
   addRow('Name', htmlEscape(fullName));
 
   const phone = data.phone_number || '';
-  addRow('Phone', phone ? `<a href="tel:${attrEscape(phone)}">${htmlEscape(phone)}</a>` : '—');
+  const phoneMarkup = phone
+    ? `<a href="javascript:void(0);" class="csta-call-link" data-csta-number="${attrEscape(phone)}">${htmlEscape(phone)}</a>`
+    : '—';
+  addRow('Phone', phoneMarkup);
 
   const addressText = data.address || '';
   addRow('Address', addressText && addressText.trim() !== ''
@@ -1139,6 +1177,10 @@ function openCaseDetails(caseNumber, options = {}) {
       openPreviousCasesList(phoneValue, current);
     });
   });
+
+  if (typeof attachCstaLinks === 'function') {
+    attachCstaLinks(detailsTableBody);
+  }
 
   showStackedModal(detailsModal);
 }
@@ -1225,12 +1267,11 @@ const PREFILLED_PHONE = <?php echo json_encode($phone_number_lookup); ?>;
 const PREFILLED_CASE  = <?php echo json_encode($case_number_lookup); ?>;
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (!PREFILLED_PHONE) {
-    return;
-  }
-  const related = CASES_BY_PHONE[PREFILLED_PHONE];
-  if (Array.isArray(related) && related.length) {
-    openPreviousCasesList(PREFILLED_PHONE, PREFILLED_CASE || '');
+  if (PREFILLED_PHONE) {
+    const related = CASES_BY_PHONE[PREFILLED_PHONE];
+    if (Array.isArray(related) && related.length) {
+      openPreviousCasesList(PREFILLED_PHONE, PREFILLED_CASE || '');
+    }
   }
 });
 </script>
