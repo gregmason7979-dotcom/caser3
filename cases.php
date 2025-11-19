@@ -168,6 +168,7 @@ function scanRemoteDir($url, $depth=0, $maxDepth=2, &$visited=[]) {
 }
 $audio_dir_url = "http://192.168.1.154/secrecord";
 $mp3_files = scanRemoteDir($audio_dir_url);
+$audioProxyBase = 'neo_audio.php';
 
 // Build lookup tables for case metadata and related audio/phone mappings
 $casesByNumber = [];
@@ -188,6 +189,10 @@ foreach ($rows as $row) {
                 break;
             }
         }
+    }
+
+    if (!isset($audioByCase[$caseNum]) || $audioByCase[$caseNum] === '') {
+        $audioByCase[$caseNum] = $audioProxyBase . '?case=' . rawurlencode($caseNum);
     }
 
     $caseData = [
