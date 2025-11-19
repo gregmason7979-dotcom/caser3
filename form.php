@@ -185,14 +185,53 @@ const CASES_BY_NUMBER = <?php echo $casesByNumberJson; ?> || {};
 const CASES_BY_PHONE  = <?php echo $casesByPhoneJson; ?> || {};
 const AUDIO_BY_CASE   = <?php echo $audioByCaseJson; ?> || {};
 const AGENT_EXT       = <?php echo json_encode($agentExt); ?> || '';
-const CSTA_HELPER_URL = 'csta_makecall.php';
 window.CASES_BY_NUMBER = CASES_BY_NUMBER;
 window.CASES_BY_PHONE = CASES_BY_PHONE;
 window.AUDIO_BY_CASE = AUDIO_BY_CASE;
 window.AGENT_EXT = AGENT_EXT;
-window.CSTA_HELPER_URL = CSTA_HELPER_URL;
 </script>
-<script src="js/csta-call.js"></script>
+<script>
+// 🔧 CHANGE THIS to the exact URL that works in the lab
+// e.g. "http://192.168.1.154/csta_makecall.php"
+const CSTA_HELPER_URL = 'http://192.168.1.154/caser/csta_makecall.php';
+
+function mxoneMakeCall(fromExt, toNumber) {
+    if (!fromExt) {
+        alert('Missing agent extension. Append ?ext=200 to the URL.');
+        return;
+    }
+    if (!toNumber) {
+        alert('Enter a destination phone number first.');
+        return;
+    }
+
+    const url = CSTA_HELPER_URL
+        + '?from=' + encodeURIComponent(fromExt)
+        + '&to='   + encodeURIComponent(toNumber);
+
+    fetch(url, { method: 'GET' })
+        .then(r => r.text())
+        .then(text => {
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                alert('Helper did not return JSON. First 200 chars:\n' + text.substring(0, 200));
+                return;
+            }
+
+            if (data.success) {
+                alert('Dialling ' + toNumber + ' from ' + fromExt);
+            } else {
+                alert('MakeCall failed: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error('Error calling MX-ONE helper:', err);
+            alert('Error calling MX-ONE helper: ' + err);
+        });
+}
+</script>
 <style>
 /* Header / Navbar */
 .header {
@@ -250,6 +289,33 @@ button:hover { background: #005bb5; }
     font-size: 16px;
     color: #004a9f;
 }
+.phone-field-wrap {
+    display: flex;
+    gap: 8px;
+}
+.phone-field-wrap input {
+    flex: 1 1 auto;
+}
+.call-btn {
+    white-space: nowrap;
+    background: #00a36c;
+    border: none;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.call-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.call-hint {
+    font-size: 12px;
+    color: #4c5b7c;
+    margin-top: 4px;
+}
+
 /* Related cases table styles (match cases.php) */
 .related-card { max-width: 1100px; margin: 26px auto; padding: 14px 16px 20px; background:#fff; border-radius:10px; box-shadow:0 5px 15px rgba(0,0,0,0.1); }
 .related-title { text-align:center; color:#0073e6; margin:8px 0 12px; }
@@ -469,7 +535,7 @@ window.openMapPopup = openMapPopup;
     <?php if ($agentExt === ''): ?>
       Append <code>?ext=200</code> (or your extension) to this page URL.
     <?php else: ?>
-      Loaded from MiCC-E Agent.
+      Loaded from query string / session.
     <?php endif; ?>
   </div>
 </div>
@@ -498,7 +564,11 @@ window.openMapPopup = openMapPopup;
       </div>
       <div class="col-half">
           <label for="phone_number">Phone Number:</label>
-          <input type="text" id="phone_number" name="phone_number" maxlength="20" value="<?php echo $phone_number_prefill; ?>">
+          <div class="phone-field-wrap">
+            <input type="text" id="phone_number" name="phone_number" maxlength="20" value="<?php echo $phone_number_prefill; ?>">
+            <button type="button" class="call-btn" id="call-phone-btn">📞 Call</button>
+          </div>
+          <div class="call-hint" id="call-hint"></div>
       </div>
   </div>
 
@@ -1267,6 +1337,29 @@ const PREFILLED_PHONE = <?php echo json_encode($phone_number_lookup); ?>;
 const PREFILLED_CASE  = <?php echo json_encode($case_number_lookup); ?>;
 
 document.addEventListener('DOMContentLoaded', () => {
+  const callBtn   = document.getElementById('call-phone-btn');
+  const phoneInput = document.getElementById('phone_number');
+  const callHint  = document.getElementById('call-hint');
+
+  if (callBtn && phoneInput) {
+    const updateCallHint = () => {
+      if (!callHint) return;
+      if (AGENT_EXT) {
+        callHint.textContent = 'Click to dial this number from extension ' + AGENT_EXT + '.';
+      } else {
+        callHint.innerHTML = 'Set your extension by adding <code>?ext=200</code> (replace with yours) to this page URL.';
+      }
+    };
+
+    callBtn.disabled = !AGENT_EXT;
+    updateCallHint();
+
+    callBtn.addEventListener('click', () => {
+      const toNumber = (phoneInput.value || '').trim();
+      mxoneMakeCall(AGENT_EXT, toNumber);
+    });
+  }
+
   if (PREFILLED_PHONE) {
     const related = CASES_BY_PHONE[PREFILLED_PHONE];
     if (Array.isArray(related) && related.length) {
