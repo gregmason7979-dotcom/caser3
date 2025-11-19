@@ -1,5 +1,42 @@
 <?php
 // escalate.php — calls OpenMedia AddRequest, stores session id, marks case Escalated
+session_start();
+
+function sanitizeAgentExtension($value) {
+  return preg_replace('/[^0-9*#+]/', '', (string)$value);
+}
+
+function appendAgentExtToUrl($url, $agentExtValue) {
+  $agentExtValue = trim((string)$agentExtValue);
+  if ($agentExtValue === '') {
+    return $url;
+  }
+  $separator = (strpos($url, '?') === false) ? '?' : '&';
+  return $url . $separator . 'ext=' . urlencode($agentExtValue);
+}
+
+$agentExt = '';
+$rawExt = '';
+if (isset($_GET['ext']) && $_GET['ext'] !== '') {
+  $rawExt = $_GET['ext'];
+} elseif (isset($_POST['ext']) && $_POST['ext'] !== '') {
+  $rawExt = $_POST['ext'];
+}
+
+if ($rawExt !== '') {
+  $agentExt = sanitizeAgentExtension($rawExt);
+  if ($agentExt !== '') {
+    $_SESSION['agent_ext'] = $agentExt;
+    setcookie('agent_ext', $agentExt, time() + 31536000, '/');
+  }
+} elseif (!empty($_SESSION['agent_ext'])) {
+  $agentExt = sanitizeAgentExtension($_SESSION['agent_ext']);
+} elseif (!empty($_COOKIE['agent_ext'])) {
+  $agentExt = sanitizeAgentExtension($_COOKIE['agent_ext']);
+  if ($agentExt !== '') {
+    $_SESSION['agent_ext'] = $agentExt;
+  }
+}
 
 $serverName = "localhost";
 $connectionOptions = [
@@ -196,7 +233,11 @@ if ($soapSucceeded) {
 sqlsrv_close($conn);
 
 // Return to referrer after 3 seconds
-$back = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : 'cases.php';
+$back = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+if ($back === '') {
+  $back = 'cases.php';
+}
+$back = appendAgentExtToUrl($back, $agentExt);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -213,10 +254,10 @@ body { font-family: Arial, sans-serif; background:#f7f9fc; margin:0; }
 </head>
 <body>
 <div class="header">
-  <a href="form.php">➕ New Case</a>
-  <a href="cases.php">📋 Case List</a>
-  <a href="search.php">🔍 Search Cases</a>
-  <a href="dashboard.php">📊 Dashboard</a>
+  <a href="<?php echo appendAgentExtToUrl('form.php', $agentExt); ?>">➕ New Case</a>
+  <a href="<?php echo appendAgentExtToUrl('cases.php', $agentExt); ?>">📋 Case List</a>
+  <a href="<?php echo appendAgentExtToUrl('search.php', $agentExt); ?>">🔍 Search Cases</a>
+  <a href="<?php echo appendAgentExtToUrl('dashboard.php', $agentExt); ?>">📊 Dashboard</a>
 </div>
 <div class="container"><p class="msg"><?php echo $msg; ?></p></div>
 </body>

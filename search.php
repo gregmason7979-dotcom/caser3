@@ -1,4 +1,42 @@
 <?php
+session_start();
+
+function sanitizeAgentExtension($value) {
+    return preg_replace('/[^0-9*#+]/', '', (string)$value);
+}
+
+function appendAgentExtToUrl($url, $agentExtValue) {
+    $agentExtValue = trim((string)$agentExtValue);
+    if ($agentExtValue === '') {
+        return $url;
+    }
+    $separator = (strpos($url, '?') === false) ? '?' : '&';
+    return $url . $separator . 'ext=' . urlencode($agentExtValue);
+}
+
+$agentExt = '';
+$rawExt = '';
+if (isset($_GET['ext']) && $_GET['ext'] !== '') {
+    $rawExt = $_GET['ext'];
+} elseif (isset($_POST['ext']) && $_POST['ext'] !== '') {
+    $rawExt = $_POST['ext'];
+}
+
+if ($rawExt !== '') {
+    $agentExt = sanitizeAgentExtension($rawExt);
+    if ($agentExt !== '') {
+        $_SESSION['agent_ext'] = $agentExt;
+        setcookie('agent_ext', $agentExt, time() + 31536000, '/');
+    }
+} elseif (!empty($_SESSION['agent_ext'])) {
+    $agentExt = sanitizeAgentExtension($_SESSION['agent_ext']);
+} elseif (!empty($_COOKIE['agent_ext'])) {
+    $agentExt = sanitizeAgentExtension($_COOKIE['agent_ext']);
+    if ($agentExt !== '') {
+        $_SESSION['agent_ext'] = $agentExt;
+    }
+}
+
 $serverName = "localhost";
 $connectionOptions = [
   "Database" => "nextccdb",
@@ -44,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD']=='POST') {
 
 $rows = [];
 if ($search_started) {
-  $sql = "SELECT CONVERT(VARCHAR(19), date_time, 120) AS date_time_str, * 
+  $sql = "SELECT CONVERT(VARCHAR(19), date_time, 120) AS date_time_str, *
           FROM mwcsp_caser WHERE 1=1";
   $params = [];
 
@@ -68,6 +106,24 @@ if ($search_started) {
       $rows[] = $r;
     }
   }
+}
+
+$searchRedirectParams = [];
+if (trim((string)$term) !== '') {
+    $searchRedirectParams['term'] = $term;
+}
+if (trim((string)$date_from) !== '') {
+    $searchRedirectParams['date_from'] = $date_from;
+}
+if (trim((string)$date_to) !== '') {
+    $searchRedirectParams['date_to'] = $date_to;
+}
+if (trim((string)$agentExt) !== '') {
+    $searchRedirectParams['ext'] = $agentExt;
+}
+$searchRedirectTarget = 'search.php';
+if (!empty($searchRedirectParams)) {
+    $searchRedirectTarget .= '?' . http_build_query($searchRedirectParams);
 }
 
 // Audio discovery (same as cases/form pages)
@@ -217,10 +273,15 @@ if (!$search_started) {
 const CASES_BY_NUMBER = <?php echo $casesByNumberJson; ?> || {};
 const CASES_BY_PHONE  = <?php echo $casesByPhoneJson; ?> || {};
 const AUDIO_BY_CASE   = <?php echo $audioByCaseJson; ?> || {};
+const AGENT_EXT       = <?php echo json_encode($agentExt); ?> || '';
+const CSTA_HELPER_URL = 'csta_makecall.php';
 window.CASES_BY_NUMBER = CASES_BY_NUMBER;
 window.CASES_BY_PHONE = CASES_BY_PHONE;
 window.AUDIO_BY_CASE = AUDIO_BY_CASE;
+window.AGENT_EXT = AGENT_EXT;
+window.CSTA_HELPER_URL = CSTA_HELPER_URL;
 </script>
+<script src="js/csta-call.js"></script>
 <style>
 .page-title {
      text-align: center;
@@ -300,11 +361,38 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
 .highlight-blue   { background-color: #d9ecff !important; }  /* Escalated */
 
 /* Modals */
-.modal { display: none; position: fixed; padding-top: 100px; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); z-index: 3000;}
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  padding: 40px 12px;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background-color: rgba(0,0,0,0.4);
+  z-index: 3000;
+}
 .modal.modal-notes { z-index: 15000; }
 #detailsModal { z-index: 2000; }
 
-.modal-content { background-color: #fff; margin: auto; padding: 20px; border-radius: 10px; width: 80%; max-width: 640px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; }
+.modal-content {
+  background-color: #fff;
+  margin: auto;
+  padding: 20px;
+  border-radius: 10px;
+  width: 80%;
+  max-width: 640px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  position: relative;
+}
+@media (max-width: 768px) {
+  .modal-content {
+    width: 94%;
+    max-height: calc(100vh - 80px);
+  }
+}
 .modal-content h3 { margin: 0 0 10px 0; color:#0073e6; }
 .close { color: #aaa; position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
 .close:hover { color: #000; }
@@ -328,6 +416,7 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
   max-width: 900px;
   width: 90%;
   height: 80vh;
+  max-height: 80vh;
   display: flex;
   flex-direction: column;
 }
@@ -478,10 +567,10 @@ window.openMapPopup = openMapPopup;
 <body>
 
 <div class="header">
-  <a href="form.php">➕ New Case</a>
-  <a href="cases.php">📋 Case List</a>
-  <a href="search.php" class="active">🔍 Search Cases</a>
-  <a href="dashboard.php">📊 Dashboard</a>
+  <a href="<?php echo appendAgentExtToUrl('form.php', $agentExt); ?>">➕ New Case</a>
+  <a href="<?php echo appendAgentExtToUrl('cases.php', $agentExt); ?>">📋 Case List</a>
+  <a href="<?php echo appendAgentExtToUrl('search.php', $agentExt); ?>" class="active">🔍 Search Cases</a>
+  <a href="<?php echo appendAgentExtToUrl('dashboard.php', $agentExt); ?>">📊 Dashboard</a>
 </div>
 <div class="page-title">Search Cases</div>
 
@@ -495,6 +584,7 @@ window.openMapPopup = openMapPopup;
   <div class="search-header">
     <div class="search-card">
       <form method="post">
+        <input type="hidden" name="ext" value="<?php echo htmlspecialchars($agentExt); ?>">
         <div class="search-row">
           <div class="field">
             <label for="term">Search term</label>
@@ -568,21 +658,25 @@ window.openMapPopup = openMapPopup;
 
         echo "<td>";
         if (!empty($row['phone_number'])) {
-            $safePhone = htmlspecialchars((string)$row['phone_number']);
-            echo "<a href='tel:$safePhone'>$safePhone</a>";
+            $safePhone = htmlspecialchars((string)$row['phone_number'], ENT_QUOTES);
+            echo "<a href='javascript:void(0);' class='csta-call-link' data-csta-number='$safePhone'>$safePhone</a>";
         } else { echo "—"; }
         echo "</td>";
 
+        $editUrl = appendAgentExtToUrl('edit_case.php?id=' . urlencode((string)$case_number), $agentExt);
+        $closeUrl = 'close_case.php?case=' . urlencode((string)$case_number)
+                  . '&redirect=' . rawurlencode($searchRedirectTarget);
+        $escalateUrl = appendAgentExtToUrl('escalate.php?id=' . urlencode((string)$case_number), $agentExt);
         echo "<td>
-                <a href='javascript:void(0);' class='view-details-btn' 
-                   data-case='".htmlspecialchars(json_encode($row), ENT_QUOTES)."' 
-                   data-audio='".htmlspecialchars($audioLink, ENT_QUOTES)."'>View Details</a> | 
-                <a class='edit-link' href='edit_case.php?id=".urlencode((string)$case_number)."'>Edit</a>";
+                <a href='javascript:void(0);' class='view-details-btn'
+                   data-case='".htmlspecialchars(json_encode($row), ENT_QUOTES)."'
+                   data-audio='".htmlspecialchars($audioLink, ENT_QUOTES)."'>View Details</a> |
+                <a class='edit-link' href='".htmlspecialchars($editUrl, ENT_QUOTES)."'>Edit</a>";
         if ($statusLower == 'open') {
-            echo " | <a class='edit-link' href='cases.php?close_case=".urlencode((string)$case_number)."' onclick=\"return confirm('Close this case?');\">Close</a> | 
-                   <a class='edit-link' href='escalate.php?id=".urlencode((string)$case_number)."'>Escalate</a>";
+            echo " | <a class='edit-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' onclick=\"return confirm('Close this case?');\">Close</a> |"
+               . " <a class='edit-link' href='" . htmlspecialchars($escalateUrl, ENT_QUOTES) . "'>Escalate</a>";
         } elseif ($statusLower == 'escalated') {
-            echo " | <a class='edit-link' href='cases.php?close_case=".urlencode((string)$case_number)."' onclick=\"return confirm('Close this escalated case?');\">Close</a>";
+            echo " | <a class='edit-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' onclick=\"return confirm('Close this escalated case?');\">Close</a>";
         }
         echo "</td>";
 
@@ -1053,7 +1147,10 @@ function openCaseDetails(caseNumber, options = {}) {
   addRow('Name', htmlEscape(fullName));
 
   const phone = data.phone_number || '';
-  addRow('Phone', phone ? `<a href="tel:${attrEscape(phone)}">${htmlEscape(phone)}</a>` : '—');
+  const phoneMarkup = phone
+    ? `<a href="javascript:void(0);" class="csta-call-link" data-csta-number="${attrEscape(phone)}">${htmlEscape(phone)}</a>`
+    : '—';
+  addRow('Phone', phoneMarkup);
 
   const addressText = data.address || '';
   addRow('Address', addressText && addressText.trim() !== ''
@@ -1115,6 +1212,10 @@ function openCaseDetails(caseNumber, options = {}) {
       openPreviousCasesList(phoneValue, current);
     });
   });
+
+  if (typeof attachCstaLinks === 'function') {
+    attachCstaLinks(detailsTableBody);
+  }
 
   showStackedModal(detailsModal);
 }
