@@ -1,4 +1,11 @@
 <?php
+session_start();
+if (isset($_GET['ext']) && $_GET['ext'] !== '') {
+    $ext = preg_replace('/[^0-9*#+]/', '', $_GET['ext']);
+    $_SESSION['agent_ext'] = $ext;
+}
+$agentExt = $_SESSION['agent_ext'] ?? '';
+
 $serverName = "localhost";
 $connectionOptions = [
   "Database" => "nextccdb",
@@ -217,10 +224,15 @@ if (!$search_started) {
 const CASES_BY_NUMBER = <?php echo $casesByNumberJson; ?> || {};
 const CASES_BY_PHONE  = <?php echo $casesByPhoneJson; ?> || {};
 const AUDIO_BY_CASE   = <?php echo $audioByCaseJson; ?> || {};
+const AGENT_EXT       = <?php echo json_encode($agentExt); ?> || '';
+const CSTA_HELPER_URL = 'csta_makecall.php';
 window.CASES_BY_NUMBER = CASES_BY_NUMBER;
 window.CASES_BY_PHONE = CASES_BY_PHONE;
 window.AUDIO_BY_CASE = AUDIO_BY_CASE;
+window.AGENT_EXT = AGENT_EXT;
+window.CSTA_HELPER_URL = CSTA_HELPER_URL;
 </script>
+<script src="js/csta-call.js"></script>
 <style>
 .page-title {
      text-align: center;
@@ -568,8 +580,8 @@ window.openMapPopup = openMapPopup;
 
         echo "<td>";
         if (!empty($row['phone_number'])) {
-            $safePhone = htmlspecialchars((string)$row['phone_number']);
-            echo "<a href='tel:$safePhone'>$safePhone</a>";
+            $safePhone = htmlspecialchars((string)$row['phone_number'], ENT_QUOTES);
+            echo "<a href='javascript:void(0);' class='csta-call-link' data-csta-number='$safePhone'>$safePhone</a>";
         } else { echo "—"; }
         echo "</td>";
 
@@ -1053,7 +1065,10 @@ function openCaseDetails(caseNumber, options = {}) {
   addRow('Name', htmlEscape(fullName));
 
   const phone = data.phone_number || '';
-  addRow('Phone', phone ? `<a href="tel:${attrEscape(phone)}">${htmlEscape(phone)}</a>` : '—');
+  const phoneMarkup = phone
+    ? `<a href="javascript:void(0);" class="csta-call-link" data-csta-number="${attrEscape(phone)}">${htmlEscape(phone)}</a>`
+    : '—';
+  addRow('Phone', phoneMarkup);
 
   const addressText = data.address || '';
   addRow('Address', addressText && addressText.trim() !== ''
@@ -1115,6 +1130,10 @@ function openCaseDetails(caseNumber, options = {}) {
       openPreviousCasesList(phoneValue, current);
     });
   });
+
+  if (typeof attachCstaLinks === 'function') {
+    attachCstaLinks(detailsTableBody);
+  }
 
   showStackedModal(detailsModal);
 }

@@ -729,10 +729,10 @@ window.openMapPopup = openMapPopup;
           echo "<td>". htmlspecialchars((string)$row['status']) ."</td>";
 
           echo "<td>";
-          if (!empty($row['phone_number'])) {
-              $safePhone = htmlspecialchars((string)$row['phone_number']);
-              echo "<a href='tel:$safePhone'>$safePhone</a>";
-          } else { echo "—"; }
+        if (!empty($row['phone_number'])) {
+            $safePhone = htmlspecialchars((string)$row['phone_number'], ENT_QUOTES);
+            echo "<a href='javascript:void(0);' class='csta-call-link' data-csta-number='$safePhone'>$safePhone</a>";
+        } else { echo "—"; }
           echo "</td>";
 
           // Actions with View Details/Notes, Edit, Close/Escalate logic, Address + Escalation ID in modal
@@ -1182,7 +1182,10 @@ function openCaseDetails(caseNumber, options = {}) {
   addRow('Name', htmlEscape(fullName));
 
   const phone = data.phone_number || '';
-  addRow('Phone', phone ? `<a href="tel:${attrEscape(phone)}">${htmlEscape(phone)}</a>` : '—');
+  const phoneMarkup = phone
+    ? `<a href="javascript:void(0);" class="csta-call-link" data-csta-number="${attrEscape(phone)}">${htmlEscape(phone)}</a>`
+    : '—';
+  addRow('Phone', phoneMarkup);
 
   const addressText = data.address || '';
   addRow('Address', addressText && addressText.trim() !== ''
@@ -1244,6 +1247,10 @@ function openCaseDetails(caseNumber, options = {}) {
       openPreviousCasesList(phoneValue, current);
     });
   });
+
+  if (typeof attachCstaLinks === 'function') {
+    attachCstaLinks(detailsTableBody);
+  }
 
   showStackedModal(detailsModal);
 }

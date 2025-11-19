@@ -1,4 +1,11 @@
 ﻿<?php
+session_start();
+if (isset($_GET['ext']) && $_GET['ext'] !== '') {
+    $ext = preg_replace('/[^0-9*#+]/', '', $_GET['ext']);
+    $_SESSION['agent_ext'] = $ext;
+}
+$agentExt = $_SESSION['agent_ext'] ?? '';
+
 set_time_limit(120);
 
 $serverName = "localhost";
@@ -216,63 +223,6 @@ sqlsrv_close($conn);
 
 
 
-<script>
-// 🔧 CHANGE THIS to the exact URL you typed in the browser that worked
-// e.g. "http://192.168.1.154/csta_makecall.php"
-const CSTA_HELPER_URL = 'http://192.168.1.154/caser/csta_makecall.php';
-
-function mxoneMakeCall(fromExt, toNumber) {
-    if (!toNumber) {
-        alert('No destination number specified.');
-        return;
-    }
-
-    const url = CSTA_HELPER_URL
-        + '?from=' + encodeURIComponent(fromExt)
-        + '&to='   + encodeURIComponent(toNumber);
-
-    console.log('Calling helper:', url);
-
-    fetch(url, { method: 'GET' })
-        .then(r => r.text())
-        .then(text => {
-            console.log('Helper raw response:', text);
-
-            let data;
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                alert(
-                    'Helper did not return JSON.\n\n' +
-                    'First 200 chars:\n' + text.substring(0, 200)
-                );
-                return;
-            }
-
-            if (data.success) {
-                alert('Dialling ' + toNumber + ' from ' + fromExt);
-            } else {
-                alert('MakeCall failed: ' + (data.message || 'Unknown error'));
-            }
-        })
-        .catch(err => {
-            console.error('Error calling MX-ONE helper:', err);
-            alert('Error calling MX-ONE helper: ' + err);
-        });
-}
-
-// Simple hard-coded lab test
-function testLabCall() {
-    const fromExt = '200';  // your monitored/WebRTC ext
-    const toNum   = '333';  // test destination
-    mxoneMakeCall(fromExt, toNum);
-}
-</script>
-
-
-
-
-
 <!-- A) Google Maps preview helper -->
 <script>
 function openMapPopup(addr){
@@ -291,10 +241,15 @@ window.openMapPopup = openMapPopup;
 const CASES_BY_NUMBER = <?php echo $casesByNumberJson; ?> || {};
 const CASES_BY_PHONE  = <?php echo $casesByPhoneJson; ?> || {};
 const AUDIO_BY_CASE   = <?php echo $audioByCaseJson; ?> || {};
+const AGENT_EXT       = <?php echo json_encode($agentExt); ?> || '';
+const CSTA_HELPER_URL = 'csta_makecall.php';
 window.CASES_BY_NUMBER = CASES_BY_NUMBER;
 window.CASES_BY_PHONE = CASES_BY_PHONE;
 window.AUDIO_BY_CASE = AUDIO_BY_CASE;
+window.AGENT_EXT = AGENT_EXT;
+window.CSTA_HELPER_URL = CSTA_HELPER_URL;
 </script>
+<script src="js/csta-call.js"></script>
 
 <style>
 /* Header / Navbar */
@@ -672,8 +627,8 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
 
         echo "<td>";
         if (!empty($row['phone_number'])) {
-            $safePhone = htmlspecialchars((string)$row['phone_number']);
-            echo "<a href='tel:$safePhone'>$safePhone</a>";
+            $safePhone = htmlspecialchars((string)$row['phone_number'], ENT_QUOTES);
+            echo "<a href='javascript:void(0);' class='csta-call-link' data-csta-number='$safePhone'>$safePhone</a>";
         } else { echo "—"; }
         echo "</td>";
 
@@ -1169,7 +1124,10 @@ function openCaseDetails(caseNumber, options = {}) {
   addRow('Name', htmlEscape(fullName));
 
   const phone = data.phone_number || '';
-  addRow('Phone', phone ? `<a href="tel:${attrEscape(phone)}">${htmlEscape(phone)}</a>` : '—');
+  const phoneMarkup = phone
+    ? `<a href="javascript:void(0);" class="csta-call-link" data-csta-number="${attrEscape(phone)}">${htmlEscape(phone)}</a>`
+    : '—';
+  addRow('Phone', phoneMarkup);
 
   const addressText = data.address || '';
   addRow('Address', addressText && addressText.trim() !== ''
@@ -1231,6 +1189,10 @@ function openCaseDetails(caseNumber, options = {}) {
       openPreviousCasesList(phoneValue, current);
     });
   });
+
+  if (typeof attachCstaLinks === 'function') {
+    attachCstaLinks(detailsTableBody);
+  }
 
   showStackedModal(detailsModal);
 }
