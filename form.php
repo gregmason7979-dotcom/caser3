@@ -1,14 +1,42 @@
 <?php
 session_start(); // if you’re not already doing this
 
-// Get ext from query string if present and stash it in the session
-if (isset($_GET['ext']) && $_GET['ext'] !== '') {
-    // basic sanitise: only digits, *, #, +
-    $ext = preg_replace('/[^0-9*#+]/', '', $_GET['ext']);
-    $_SESSION['agent_ext'] = $ext;
+function sanitizeAgentExtension($value) {
+    return preg_replace('/[^0-9*#+]/', '', (string)$value);
 }
 
-$agentExt = $_SESSION['agent_ext'] ?? '';  // use later in page / JS
+function appendAgentExtToUrl($url, $agentExtValue) {
+    $agentExtValue = trim((string)$agentExtValue);
+    if ($agentExtValue === '') {
+        return $url;
+    }
+    $separator = (strpos($url, '?') === false) ? '?' : '&';
+    return $url . $separator . 'ext=' . urlencode($agentExtValue);
+}
+
+$agentExt = '';
+$rawExt = '';
+if (isset($_GET['ext']) && $_GET['ext'] !== '') {
+    $rawExt = $_GET['ext'];
+} elseif (isset($_POST['ext']) && $_POST['ext'] !== '') {
+    $rawExt = $_POST['ext'];
+}
+
+if ($rawExt !== '') {
+    $agentExt = sanitizeAgentExtension($rawExt);
+    if ($agentExt !== '') {
+        $_SESSION['agent_ext'] = $agentExt;
+        setcookie('agent_ext', $agentExt, time() + 31536000, '/');
+    }
+} elseif (!empty($_SESSION['agent_ext'])) {
+    $agentExt = sanitizeAgentExtension($_SESSION['agent_ext']);
+} elseif (!empty($_COOKIE['agent_ext'])) {
+    $agentExt = sanitizeAgentExtension($_COOKIE['agent_ext']);
+    if ($agentExt !== '') {
+        $_SESSION['agent_ext'] = $agentExt;
+    }
+}
+$formCloseRedirect = appendAgentExtToUrl('form.php', $agentExt);
 ?>
 
 <?php
@@ -184,10 +212,16 @@ $nowDT = clone $serverNowObj;
 const CASES_BY_NUMBER = <?php echo $casesByNumberJson; ?> || {};
 const CASES_BY_PHONE  = <?php echo $casesByPhoneJson; ?> || {};
 const AUDIO_BY_CASE   = <?php echo $audioByCaseJson; ?> || {};
+const AGENT_EXT       = <?php echo json_encode($agentExt); ?> || '';
+const CSTA_HELPER_URL = 'csta_makecall.php';
 window.CASES_BY_NUMBER = CASES_BY_NUMBER;
 window.CASES_BY_PHONE = CASES_BY_PHONE;
 window.AUDIO_BY_CASE = AUDIO_BY_CASE;
+window.AGENT_EXT = AGENT_EXT;
+window.CSTA_HELPER_URL = CSTA_HELPER_URL;
 </script>
+<script src="js/csta-call.js"></script>
+<script src="js/close-confirm.js"></script>
 <style>
 /* Header / Navbar */
 .header {
@@ -228,7 +262,23 @@ button:hover { background: #005bb5; }
 
 /* Informed Consent row adjustments */
 .consent-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
-
+.agent-ext-banner {
+    margin: 16px auto 0;
+    max-width: 700px;
+    background: #e9f2ff;
+    border: 1px solid #bcd5ff;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #1f3b66;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 15px;
+}
+.agent-ext-banner strong {
+    font-size: 16px;
+    color: #004a9f;
+}
 /* Related cases table styles (match cases.php) */
 .related-card { max-width: 1100px; margin: 26px auto; padding: 14px 16px 20px; background:#fff; border-radius:10px; box-shadow:0 5px 15px rgba(0,0,0,0.1); }
 .related-title { text-align:center; color:#0073e6; margin:8px 0 12px; }
@@ -245,11 +295,38 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
 .highlight-blue   { background-color: #d9ecff !important; }  /* Escalated */
 
 /* Modals shared */
-.modal { display: none; position: fixed; padding-top: 100px; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); z-index: 3000;}
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  padding: 40px 12px;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background-color: rgba(0,0,0,0.4);
+  z-index: 3000;
+}
 .modal.modal-notes { z-index: 15000; }
 #detailsModal { z-index: 2000; }
 
-.modal-content { background-color: #fff; margin: auto; padding: 20px; border-radius: 10px; width: 80%; max-width: 640px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; }
+.modal-content {
+  background-color: #fff;
+  margin: auto;
+  padding: 20px;
+  border-radius: 10px;
+  width: 80%;
+  max-width: 640px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  position: relative;
+}
+@media (max-width: 768px) {
+  .modal-content {
+    width: 94%;
+    max-height: calc(100vh - 80px);
+  }
+}
 .modal-content h3 { margin: 0 0 10px 0; color:#0073e6; }
 .close { color: #aaa; position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
 .close:hover { color: #000; }
@@ -282,6 +359,7 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
   max-width: 900px;
   width: 90%;
   height: 80vh;
+  max-height: 80vh;
   display: flex;
   flex-direction: column;
 }
@@ -433,15 +511,30 @@ window.openMapPopup = openMapPopup;
 
 <!-- Header / Navbar -->
 <div class="header">
-  <a href="form.php" class="<?php echo ($currentPage=='form.php')?'active':''; ?>">➕ New Case</a>
-  <a href="cases.php" class="<?php echo ($currentPage=='cases.php')?'active':''; ?>">📋 Case List</a>
-  <a href="search.php" class="<?php echo ($currentPage=='search.php')?'active':''; ?>">🔍 Search Cases</a>
-  <a href="dashboard.php" class="<?php echo ($currentPage=='dashboard.php')?'active':''; ?>">📊 Dashboard</a>
+  <a href="<?php echo appendAgentExtToUrl('form.php', $agentExt); ?>" class="<?php echo ($currentPage=='form.php')?'active':''; ?>">➕ New Case</a>
+  <a href="<?php echo appendAgentExtToUrl('cases.php', $agentExt); ?>" class="<?php echo ($currentPage=='cases.php')?'active':''; ?>">📋 Case List</a>
+  <a href="<?php echo appendAgentExtToUrl('search.php', $agentExt); ?>" class="<?php echo ($currentPage=='search.php')?'active':''; ?>">🔍 Search Cases</a>
+  <a href="<?php echo appendAgentExtToUrl('dashboard.php', $agentExt); ?>" class="<?php echo ($currentPage=='dashboard.php')?'active':''; ?>">📊 Dashboard</a>
+</div>
+
+<div class="agent-ext-banner" id="agent-ext-banner">
+  <div>
+    <strong>Agent Extension:</strong>
+    <span id="agent-ext-value"><?php echo $agentExt !== '' ? htmlspecialchars($agentExt) : 'Not set'; ?></span>
+  </div>
+  <div>
+    <?php if ($agentExt === ''): ?>
+      Append <code>?ext=200</code> (or your extension) to this page URL.
+    <?php else: ?>
+      Loaded from MiCC-E Agent.
+    <?php endif; ?>
+  </div>
 </div>
 
 <div class="container">
 <h2>MWCSP Case Form</h2>
 <form action="submit_case.php" method="post">
+  <input type="hidden" name="ext" value="<?php echo htmlspecialchars($agentExt); ?>">
 
   <!-- Top row: Date/Time & Case Number -->
   <div class="row">
@@ -624,23 +717,27 @@ window.openMapPopup = openMapPopup;
           echo "<td>". htmlspecialchars((string)$row['status']) ."</td>";
 
           echo "<td>";
-          if (!empty($row['phone_number'])) {
-              $safePhone = htmlspecialchars((string)$row['phone_number']);
-              echo "<a href='tel:$safePhone'>$safePhone</a>";
-          } else { echo "—"; }
+        if (!empty($row['phone_number'])) {
+            $safePhone = htmlspecialchars((string)$row['phone_number'], ENT_QUOTES);
+            echo "<a href='javascript:void(0);' class='csta-call-link' data-csta-number='$safePhone'>$safePhone</a>";
+        } else { echo "—"; }
           echo "</td>";
 
           // Actions with View Details/Notes, Edit, Close/Escalate logic, Address + Escalation ID in modal
+          $editUrl = appendAgentExtToUrl('edit_case.php?id=' . urlencode((string)$case_number), $agentExt);
+          $closeUrl = 'close_case.php?case=' . urlencode((string)$case_number)
+                    . '&redirect=' . rawurlencode($formCloseRedirect);
+          $escalateUrl = appendAgentExtToUrl('escalate.php?id=' . urlencode((string)$case_number), $agentExt);
           echo "<td>
-                  <a href='javascript:void(0);' class='view-details-btn' 
-                     data-case='".htmlspecialchars(json_encode($row), ENT_QUOTES)."' 
-                     data-audio='".htmlspecialchars($audioLink, ENT_QUOTES)."'>View Details</a> | 
-                  <a class='edit-link' href='edit_case.php?id=".urlencode((string)$case_number)."'>Edit</a>";
+                  <a href='javascript:void(0);' class='view-details-btn'
+                     data-case='".htmlspecialchars(json_encode($row), ENT_QUOTES)."'
+                     data-audio='".htmlspecialchars($audioLink, ENT_QUOTES)."'>View Details</a> |
+                  <a class='edit-link' href='".htmlspecialchars($editUrl, ENT_QUOTES)."'>Edit</a>";
           if ($statusLower == 'open') {
-              echo " | <a class='edit-link' href='cases.php?close_case=".urlencode((string)$case_number)."' onclick=\"return confirm('Close this case?');\">Close</a> | 
-                     <a class='edit-link' href='escalate.php?id=".urlencode((string)$case_number)."'>Escalate</a>";
+              echo " | <a class='edit-link close-case-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' data-close-confirm='Close this case?'>Close</a> |"
+                 . " <a class='edit-link' href='" . htmlspecialchars($escalateUrl, ENT_QUOTES) . "'>Escalate</a>";
           } elseif ($statusLower == 'escalated') {
-              echo " | <a class='edit-link' href='cases.php?close_case=".urlencode((string)$case_number)."' onclick=\"return confirm('Close this escalated case?');\">Close</a>";
+              echo " | <a class='edit-link close-case-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' data-close-confirm='Close this escalated case?'>Close</a>";
           }
           echo "</td>";
 
@@ -1077,7 +1174,10 @@ function openCaseDetails(caseNumber, options = {}) {
   addRow('Name', htmlEscape(fullName));
 
   const phone = data.phone_number || '';
-  addRow('Phone', phone ? `<a href="tel:${attrEscape(phone)}">${htmlEscape(phone)}</a>` : '—');
+  const phoneMarkup = phone
+    ? `<a href="javascript:void(0);" class="csta-call-link" data-csta-number="${attrEscape(phone)}">${htmlEscape(phone)}</a>`
+    : '—';
+  addRow('Phone', phoneMarkup);
 
   const addressText = data.address || '';
   addRow('Address', addressText && addressText.trim() !== ''
@@ -1139,6 +1239,10 @@ function openCaseDetails(caseNumber, options = {}) {
       openPreviousCasesList(phoneValue, current);
     });
   });
+
+  if (typeof attachCstaLinks === 'function') {
+    attachCstaLinks(detailsTableBody);
+  }
 
   showStackedModal(detailsModal);
 }
@@ -1225,12 +1329,11 @@ const PREFILLED_PHONE = <?php echo json_encode($phone_number_lookup); ?>;
 const PREFILLED_CASE  = <?php echo json_encode($case_number_lookup); ?>;
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (!PREFILLED_PHONE) {
-    return;
-  }
-  const related = CASES_BY_PHONE[PREFILLED_PHONE];
-  if (Array.isArray(related) && related.length) {
-    openPreviousCasesList(PREFILLED_PHONE, PREFILLED_CASE || '');
+  if (PREFILLED_PHONE) {
+    const related = CASES_BY_PHONE[PREFILLED_PHONE];
+    if (Array.isArray(related) && related.length) {
+      openPreviousCasesList(PREFILLED_PHONE, PREFILLED_CASE || '');
+    }
   }
 });
 </script>
