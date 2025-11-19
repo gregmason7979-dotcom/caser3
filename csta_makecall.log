@@ -1,0 +1,27 @@
+2025-11-19 19:20:55 FROM=200 TO=333 LEN=221 INVOKE=7694 XML=<?xml version="1.0" encoding="UTF-8"?><MakeCall xmlns="http://www.ecma-international.org/standards/ecma-323/csta/ed4"><callingDevice>200</callingDevice><calledDirectoryNumber>333</calledDirectoryNumber></MakeCall> RESP=<?xml version="1.0" encoding="UTF-8"?>
+<MakeCallResponse xmlns="http://www.ecma-international.org/standards/ecma-323/csta/ed4">
+   <callingDevice>
+      <callID>000000000032214180010035</callID>
+      <deviceID>200</deviceID>
+   </callingDevice>
+</MakeCallResponse>
+
+
+2025-11-19 19:27:15 FROM=200 TO=333 LEN=221 INVOKE=6962 XML=<?xml version="1.0" encoding="UTF-8"?><MakeCall xmlns="http://www.ecma-international.org/standards/ecma-323/csta/ed4"><callingDevice>200</callingDevice><calledDirectoryNumber>333</calledDirectoryNumber></MakeCall> RESP=<?xml version="1.0" encoding="UTF-8"?>
+<MakeCallResponse xmlns="http://www.ecma-international.org/standards/ecma-323/csta/ed4">
+   <callingDevice>
+      <callID>000000000032214240010039</callID>
+      <deviceID>200</deviceID>
+   </callingDevice>
+</MakeCallResponse>
+
+
+2025-11-19 19:48:15 FROM=200 TO=333 LEN=221 INVOKE=3600 XML=<?xml version="1.0" encoding="UTF-8"?><MakeCall xmlns="http://www.ecma-international.org/standards/ecma-323/csta/ed4"><callingDevice>200</callingDevice><calledDirectoryNumber>333</calledDirectoryNumber></MakeCall> RESP=<?xml version="1.0" encoding="UTF-8"?>
+<MakeCallResponse xmlns="http://www.ecma-international.org/standards/ecma-323/csta/ed4">
+   <callingDevice>
+      <callID>000000000032214450010040</callID>
+      <deviceID>200</deviceID>
+   </callingDevice>
+</MakeCallResponse>
+
+

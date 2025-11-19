@@ -1,0 +1,158 @@
+/* Container */
+.container {
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    font-family: Arial, sans-serif;
+}
+
+/* Header */
+.header {
+  background: #0073e6;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;       /* force full width */
+  margin: 0;         /* remove spacing above/below */
+  border-radius: 0;  /* remove rounding */
+}
+
+header {
+    background-color: #1e90ff;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 10px 10px 0 0;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+header nav a.btn {
+    background-color: white;
+    color: #1e90ff;
+    text-decoration: none;
+    padding: 8px 15px;
+    margin-left: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+header nav a.btn:hover {
+    background-color: #e0e0e0;
+}
+
+/* Form layout */
+form .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+
+form .form-column {
+    flex: 1 1 200px;
+    min-width: 180px;
+    padding: 0 10px;
+    box-sizing: border-box;
+}
+
+form .form-column.full-width {
+    flex: 1 1 100%;
+}
+
+form label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+form input[type="text"],
+form input[type="date"],
+form select,
+form textarea {
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    font-size: 14px;
+}
+
+form textarea {
+    resize: vertical;
+}
+
+/* Checkbox wrapper */
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    margin: 0;
+}
+
+/* Button styling */
+.btn {
+    background-color: #1e90ff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn:hover {
+    background-color: #1c86ee;
+}
+
+/* Table styling */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+table th, table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    font-size: 14px;
+}
+
+table th {
+    background-color: #1e90ff;
+    color: white;
+}
+
+tr.highlight {
+    background-color: #fffae6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    form .form-row, table {
+        flex-direction: column;
+    }
+}
+input[type="text"], input[type="date"] {
+  border:1px solid #cbd5e1;
+  border-radius:6px;
+  padding:6px;
+  margin-right:8px;
+}
