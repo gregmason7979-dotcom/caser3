@@ -1,4 +1,42 @@
 <?php
+session_start();
+
+function sanitizeAgentExtension($value) {
+  return preg_replace('/[^0-9*#+]/', '', (string)$value);
+}
+
+function appendAgentExtToUrl($url, $agentExtValue) {
+  $agentExtValue = trim((string)$agentExtValue);
+  if ($agentExtValue === '') {
+    return $url;
+  }
+  $separator = (strpos($url, '?') === false) ? '?' : '&';
+  return $url . $separator . 'ext=' . urlencode($agentExtValue);
+}
+
+$agentExt = '';
+$rawExt = '';
+if (isset($_GET['ext']) && $_GET['ext'] !== '') {
+  $rawExt = $_GET['ext'];
+} elseif (isset($_POST['ext']) && $_POST['ext'] !== '') {
+  $rawExt = $_POST['ext'];
+}
+
+if ($rawExt !== '') {
+  $agentExt = sanitizeAgentExtension($rawExt);
+  if ($agentExt !== '') {
+    $_SESSION['agent_ext'] = $agentExt;
+    setcookie('agent_ext', $agentExt, time() + 31536000, '/');
+  }
+} elseif (!empty($_SESSION['agent_ext'])) {
+  $agentExt = sanitizeAgentExtension($_SESSION['agent_ext']);
+} elseif (!empty($_COOKIE['agent_ext'])) {
+  $agentExt = sanitizeAgentExtension($_COOKIE['agent_ext']);
+  if ($agentExt !== '') {
+    $_SESSION['agent_ext'] = $agentExt;
+  }
+}
+
 $serverName = "localhost";
 $connectionOptions = [
   "Database" => "nextccdb",
@@ -159,14 +197,14 @@ body { font-family: Arial, sans-serif; background:#f7f9fc; margin:0; }
 .container { max-width: 600px; margin: 60px auto; background:#fff; padding:30px; border-radius:10px; box-shadow:0 5px 15px rgba(0,0,0,.1); text-align:center; }
 .success-msg { font-size:20px; color:#2e7d32; font-weight:600; }
 </style>
-<script> setTimeout(function(){ window.location.href='cases.php'; }, 3000); </script>
+<script> setTimeout(function(){ window.location.href='<?php echo appendAgentExtToUrl('cases.php', $agentExt); ?>'; }, 3000); </script>
 </head>
 <body>
 <div class="header">
-  <a href="form.php">➕ New Case</a>
-  <a href="cases.php">📋 Case List</a>
-  <a href="search.php">🔍 Search Cases</a>
-  <a href="dashboard.php">📊 Dashboard</a>
+  <a href="<?php echo appendAgentExtToUrl('form.php', $agentExt); ?>">➕ New Case</a>
+  <a href="<?php echo appendAgentExtToUrl('cases.php', $agentExt); ?>">📋 Case List</a>
+  <a href="<?php echo appendAgentExtToUrl('search.php', $agentExt); ?>">🔍 Search Cases</a>
+  <a href="<?php echo appendAgentExtToUrl('dashboard.php', $agentExt); ?>">📊 Dashboard</a>
 </div>
 <div class="container"><p class="success-msg">✅ Case submitted successfully.</p></div>
 </body>
