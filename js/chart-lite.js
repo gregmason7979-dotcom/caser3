@@ -4,17 +4,17 @@
 (function(global){
   'use strict';
 
+  function now(){
+    return (global.performance && global.performance.now) ? global.performance.now() : Date.now();
+  }
+
   const requestFrame =
     global.requestAnimationFrame ||
-    function(cb){ return setTimeout(function(){ cb(Date.now()); }, 16); };
+    function(cb){ return setTimeout(function(){ cb(now()); }, 16); };
 
   const cancelFrame =
     global.cancelAnimationFrame ||
     function(id){ clearTimeout(id); };
-
-  function now(){
-    return (global.performance && global.performance.now) ? global.performance.now() : Date.now();
-  }
 
   function ensureArray(value){
     return Array.isArray(value) ? value : [];

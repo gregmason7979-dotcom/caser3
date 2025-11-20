@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 define('NEO_HELPERS_ONLY', true);
 require_once __DIR__ . '/neo_audio.php';
