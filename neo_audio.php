@@ -104,7 +104,7 @@ function buildNeoSearchUrl($baseUrl, $searchPath, $caseNumber) {
 
     $url = $baseUrl . $searchPath;
     $separator = (strpos($url, '?') === false) ? '?' : '&';
-    return $url . $separator . 'conversationParameters.callID=' . rawurlencode($caseNumber) . '&size=1';
+    return $url . $separator . 'conversationParameters.caseId=' . rawurlencode($caseNumber) . '&size=1';
 }
 
 function extractConversationId($payload) {
@@ -166,44 +166,42 @@ function streamNeoRecording($url, array $headers, $caseNumber) {
     echo $body;
 }
 
-if (!defined('NEO_HELPERS_ONLY')) {
-    $caseRaw = isset($_GET['case']) ? $_GET['case'] : '';
-    $caseNumber = sanitizeCaseNumber($caseRaw);
+$caseRaw = isset($_GET['case']) ? $_GET['case'] : '';
+$caseNumber = sanitizeCaseNumber($caseRaw);
 
-    if ($caseNumber === '') {
-        http_response_code(400);
-        echo 'Missing case number.';
-        exit;
-    }
-
-    $audioBaseUrl = getenv('LOCAL_AUDIO_BASE_URL') ?: 'http://192.168.1.154/secrecord';
-    $localUrl = findLocalRecordingUrl($caseNumber, $audioBaseUrl);
-    if ($localUrl) {
-        header('Location: ' . $localUrl, true, 302);
-        exit;
-    }
-
-    $neoBaseUrl = getenv('ASC_NEO_BASE_URL');
-    if (!$neoBaseUrl) {
-        http_response_code(404);
-        echo 'Recording not found.';
-        exit;
-    }
-
-    $neoSearchPath = getenv('ASC_NEO_SEARCH_PATH') ?: '/neoapi/conversations';
-    $neoExportPath = getenv('ASC_NEO_EXPORT_PATH') ?: '/neoapi/export/conversations/{conversationId}/media';
-    $headers = buildNeoAuthHeaders();
-
-    $searchUrl = buildNeoSearchUrl($neoBaseUrl, $neoSearchPath, $caseNumber);
-    $payload = neoApiGetJson($searchUrl, $headers);
-    $conversationId = $payload ? extractConversationId($payload) : '';
-
-    if (!$conversationId) {
-        http_response_code(404);
-        echo 'Recording not found.';
-        exit;
-    }
-
-    $exportUrl = buildNeoExportUrl($neoBaseUrl, $neoExportPath, $conversationId);
-    streamNeoRecording($exportUrl, $headers, $caseNumber);
+if ($caseNumber === '') {
+    http_response_code(400);
+    echo 'Missing case number.';
+    exit;
 }
+
+$audioBaseUrl = getenv('LOCAL_AUDIO_BASE_URL') ?: 'http://192.168.1.154/secrecord';
+$localUrl = findLocalRecordingUrl($caseNumber, $audioBaseUrl);
+if ($localUrl) {
+    header('Location: ' . $localUrl, true, 302);
+    exit;
+}
+
+$neoBaseUrl = getenv('ASC_NEO_BASE_URL');
+if (!$neoBaseUrl) {
+    http_response_code(404);
+    echo 'Recording not found.';
+    exit;
+}
+
+$neoSearchPath = getenv('ASC_NEO_SEARCH_PATH') ?: '/neoapi/conversations';
+$neoExportPath = getenv('ASC_NEO_EXPORT_PATH') ?: '/neoapi/export/conversations/{conversationId}/media';
+$headers = buildNeoAuthHeaders();
+
+$searchUrl = buildNeoSearchUrl($neoBaseUrl, $neoSearchPath, $caseNumber);
+$payload = neoApiGetJson($searchUrl, $headers);
+$conversationId = $payload ? extractConversationId($payload) : '';
+
+if (!$conversationId) {
+    http_response_code(404);
+    echo 'Recording not found.';
+    exit;
+}
+
+$exportUrl = buildNeoExportUrl($neoBaseUrl, $neoExportPath, $conversationId);
+streamNeoRecording($exportUrl, $headers, $caseNumber);
