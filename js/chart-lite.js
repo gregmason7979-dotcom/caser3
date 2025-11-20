@@ -4,6 +4,18 @@
 (function(global){
   'use strict';
 
+  const requestFrame =
+    global.requestAnimationFrame ||
+    function(cb){ return setTimeout(function(){ cb(Date.now()); }, 16); };
+
+  const cancelFrame =
+    global.cancelAnimationFrame ||
+    function(id){ clearTimeout(id); };
+
+  function now(){
+    return (global.performance && global.performance.now) ? global.performance.now() : Date.now();
+  }
+
   function ensureArray(value){
     return Array.isArray(value) ? value : [];
   }
@@ -136,11 +148,11 @@
     const duration = this._getAnimationDuration();
 
     if (this._animFrame) {
-      cancelAnimationFrame(this._animFrame);
+      cancelFrame(this._animFrame);
       this._animFrame = null;
     }
 
-    const startTime = performance.now();
+    const startTime = now();
     this._startTime = startTime;
     this._duration = duration;
 
@@ -150,14 +162,14 @@
       this._progress = progress;
       this._drawSlices(info, progress);
       if (progress < 1) {
-        this._animFrame = requestAnimationFrame(tick);
+        this._animFrame = requestFrame(tick);
       } else {
         this._animFrame = null;
         this._drawLegend(info);
       }
     };
 
-    requestAnimationFrame(tick);
+    this._animFrame = requestFrame(tick);
   };
 
   Chart.prototype.update = function(newConfig){
