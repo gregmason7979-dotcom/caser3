@@ -135,7 +135,7 @@ $totalClosed= $countsStatus['Closed'];
 <meta charset="UTF-8">
 <title>Dashboard</title>
 <link rel="stylesheet" href="css/style.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<script src="js/chart-lite.js"></script>
 <style>
 /* Header */
 .header {

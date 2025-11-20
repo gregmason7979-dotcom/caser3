@@ -168,6 +168,7 @@ function scanRemoteDir($url, $depth=0, $maxDepth=2, &$visited=[]) {
 }
 $audio_dir_url = "http://192.168.1.154/secrecord";
 $mp3_files = scanRemoteDir($audio_dir_url);
+$audioProxyBase = 'neo_audio.php';
 
 // Build lookup tables for case metadata and related audio/phone mappings
 $casesByNumber = [];
@@ -188,6 +189,10 @@ foreach ($rows as $row) {
                 break;
             }
         }
+    }
+
+    if (!isset($audioByCase[$caseNum]) || $audioByCase[$caseNum] === '') {
+        $audioByCase[$caseNum] = $audioProxyBase . '?case=' . rawurlencode($caseNum);
     }
 
     $caseData = [
@@ -262,7 +267,7 @@ sqlsrv_close($conn);
 <meta charset="UTF-8">
 <title>Case List</title>
 <link rel="stylesheet" href="css/style.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="js/chart-lite.js"></script>
 
 
 
@@ -293,6 +298,7 @@ window.AGENT_EXT = AGENT_EXT;
 window.CSTA_HELPER_URL = CSTA_HELPER_URL;
 </script>
 <script src="js/csta-call.js"></script>
+<script src="js/close-confirm.js"></script>
 
 <style>
 /* Header / Navbar */
@@ -715,10 +721,10 @@ tbody tr:nth-child(even) { background:#f2f6fb; }
                    data-audio='".htmlspecialchars($audioLink, ENT_QUOTES)."'>View Details</a> |
                 <a class='edit-link' href='".htmlspecialchars($editUrl, ENT_QUOTES)."'>Edit</a>";
         if ($statusLower == 'open') {
-            echo " | <a class='edit-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' onclick=\"return confirm('Close this case?');\">Close</a> |"
+            echo " | <a class='edit-link close-case-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' data-close-confirm='Close this case?'>Close</a> |"
                . " <a class='edit-link' href='" . htmlspecialchars($escalateUrl, ENT_QUOTES) . "'>Escalate</a>";
         } elseif ($statusLower == 'escalated') {
-            echo " | <a class='edit-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' onclick=\"return confirm('Close this escalated case?');\">Close</a>";
+            echo " | <a class='edit-link close-case-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' data-close-confirm='Close this escalated case?'>Close</a>";
         }
         echo "</td>";
 
