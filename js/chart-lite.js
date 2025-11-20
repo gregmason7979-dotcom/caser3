@@ -27,9 +27,14 @@
     this.config = config || {};
     this.legendEl = null;
     this._animFrame = null;
+    this._fallbackTimer = null;
+    this._lastFrameTs = 0;
     this._startTime = 0;
     this._duration = 0;
     this._progress = 0;
+    if (this.canvas) {
+      this.canvas._chartLite = this;
+    }
     this.render();
   }
 
@@ -151,6 +156,10 @@
       cancelFrame(this._animFrame);
       this._animFrame = null;
     }
+    if (this._fallbackTimer) {
+      clearInterval(this._fallbackTimer);
+      this._fallbackTimer = null;
+    }
 
     const startTime = now();
     this._startTime = startTime;
@@ -161,15 +170,28 @@
       const progress = duration === 0 ? 1 : Math.min(1, elapsed / duration);
       this._progress = progress;
       this._drawSlices(info, progress);
+      this._lastFrameTs = timestamp;
       if (progress < 1) {
         this._animFrame = requestFrame(tick);
       } else {
         this._animFrame = null;
+        if (this._fallbackTimer) {
+          clearInterval(this._fallbackTimer);
+          this._fallbackTimer = null;
+        }
         this._drawLegend(info);
       }
     };
 
     this._animFrame = requestFrame(tick);
+
+    // Ensure animation still advances even if rAF is throttled/disabled (e.g., sandboxed tabs)
+    this._fallbackTimer = setInterval(() => {
+      const sinceLast = this._lastFrameTs ? now() - this._lastFrameTs : Infinity;
+      if (!this._animFrame || sinceLast > 120) {
+        tick(now());
+      }
+    }, 80);
   };
 
   Chart.prototype.update = function(newConfig){
@@ -185,6 +207,12 @@
     }
     if (this.ctx) {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+    if (this._animFrame) {
+      cancelFrame(this._animFrame);
+    }
+    if (this._fallbackTimer) {
+      clearInterval(this._fallbackTimer);
     }
   };
 
