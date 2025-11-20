@@ -162,6 +162,7 @@ function scanRemoteDir($url, $depth=0, $maxDepth=2, &$visited=[]) {
 }
 $audio_dir_url = "http://192.168.1.154/secrecord";
 $mp3_files = scanRemoteDir($audio_dir_url);
+$audioProxyBase = 'neo_audio.php';
 
 // Case metadata cache for details / previous cases
 $casesByNumber = [];
@@ -185,6 +186,10 @@ if ($conn) {
                         break;
                     }
                 }
+            }
+
+            if (!isset($audioByCase[$caseNum]) || $audioByCase[$caseNum] === '') {
+                $audioByCase[$caseNum] = $audioProxyBase . '?case=' . rawurlencode($caseNum);
             }
 
             $caseData = [
@@ -268,7 +273,7 @@ if (!$search_started) {
 <meta charset="UTF-8">
 <title>Search Cases</title>
 <link rel="stylesheet" href="css/style.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="js/chart-lite.js"></script>
 <script>
 const CASES_BY_NUMBER = <?php echo $casesByNumberJson; ?> || {};
 const CASES_BY_PHONE  = <?php echo $casesByPhoneJson; ?> || {};
@@ -282,6 +287,7 @@ window.AGENT_EXT = AGENT_EXT;
 window.CSTA_HELPER_URL = CSTA_HELPER_URL;
 </script>
 <script src="js/csta-call.js"></script>
+<script src="js/close-confirm.js"></script>
 <style>
 .page-title {
      text-align: center;
@@ -642,12 +648,7 @@ window.openMapPopup = openMapPopup;
 
         // audio link by case number
         $case_number = $row['case_number'];
-        $audioLink = '';
-        foreach ($mp3_files as $file) {
-            if (stripos(basename($file), (string)$case_number) !== false) {
-                $audioLink = $file; break;
-            }
-        }
+        $audioLink = isset($audioByCase[(string)$case_number]) ? $audioByCase[(string)$case_number] : '';
         $fullName = trim(($row['first_name'] ?? '').' '.($row['middle_name'] ?? '').' '.($row['family_name'] ?? ''));
 
         echo "<tr class='$highlight'>";
@@ -673,10 +674,10 @@ window.openMapPopup = openMapPopup;
                    data-audio='".htmlspecialchars($audioLink, ENT_QUOTES)."'>View Details</a> |
                 <a class='edit-link' href='".htmlspecialchars($editUrl, ENT_QUOTES)."'>Edit</a>";
         if ($statusLower == 'open') {
-            echo " | <a class='edit-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' onclick=\"return confirm('Close this case?');\">Close</a> |"
+            echo " | <a class='edit-link close-case-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' data-close-confirm='Close this case?'>Close</a> |"
                . " <a class='edit-link' href='" . htmlspecialchars($escalateUrl, ENT_QUOTES) . "'>Escalate</a>";
         } elseif ($statusLower == 'escalated') {
-            echo " | <a class='edit-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' onclick=\"return confirm('Close this escalated case?');\">Close</a>";
+            echo " | <a class='edit-link close-case-link' href='" . htmlspecialchars($closeUrl, ENT_QUOTES) . "' data-close-confirm='Close this escalated case?'>Close</a>";
         }
         echo "</td>";
 
